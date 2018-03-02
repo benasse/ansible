@@ -433,18 +433,6 @@ def ensure_subnet_present(conn, module):
                 'subnet': {}
             }
 
-    if module.params['ipv6_cidr'] != subnet.get('ipv6_cidr_block'):
-        if ensure_ipv6_cidr_block(conn, module, subnet, module.params['ipv6_cidr'], module.check_mode):
-            changed = True
-
-    if module.params['map_public'] != subnet['map_public_ip_on_launch']:
-        ensure_map_public(conn, module, subnet, module.params['map_public'], module.check_mode)
-        changed = True
-
-    if module.params['assign_instances_ipv6'] != subnet.get('assign_ipv6_address_on_creation'):
-        ensure_assign_ipv6_on_create(conn, module, subnet, module.params['assign_instances_ipv6'], module.check_mode)
-        changed = True
-
     if module.params['tags'] != subnet['tags']:
         if ensure_tags(conn, module, subnet, module.params['tags'], module.params['purge_tags']):
             changed = True
