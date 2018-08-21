@@ -19,8 +19,8 @@ description:
 notes:
 - The C(tenant), C(src_group), and C(dst_group) must exist before using this module in your playbook.
   The M(aci_tenant), M(aci_tenant_span_src_group), and M(aci_tenant_span_dst_group) modules can be used for this.
-- More information about the internal APIC class B(span:SrcGrp) at
-  U(https://developer.cisco.com/docs/apic-mim-ref/).
+- More information about the internal APIC class B(span:SrcGrp) from
+  L(the APIC Management Information Model reference,https://developer.cisco.com/docs/apic-mim-ref/).
 author:
 - Jacob McGill (@jmcgill298)
 version_added: '2.4'
@@ -57,6 +57,7 @@ EXAMPLES = r'''
     src_group: "{{ src_group }}"
     dst_group: "{{ dst_group }}"
     description: "{{ description }}"
+  delegate_to: localhost
 '''
 
 RETURN = r'''
@@ -176,8 +177,6 @@ def main():
         src_group=dict(type='str'),  # Not required for querying all objects
         state=dict(type='str', default='present', choices=['absent', 'present', 'query']),
         tenant=dict(type='str', aliases=['tenant_name']),  # Not required for querying all objects
-        method=dict(type='str', choices=['delete', 'get', 'post'], aliases=['action'], removed_in_version='2.6'),  # Deprecated starting from v2.6
-        protocol=dict(type='str', removed_in_version='2.6'),  # Deprecated in v2.6
     )
 
     module = AnsibleModule(
@@ -200,20 +199,20 @@ def main():
         root_class=dict(
             aci_class='fvTenant',
             aci_rn='tn-{0}'.format(tenant),
-            filter_target='eq(fvTenant.name, "{0}")'.format(tenant),
             module_object=tenant,
+            target_filter={'name': tenant},
         ),
         subclass_1=dict(
             aci_class='spanSrcGrp',
             aci_rn='srcgrp-{0}'.format(src_group),
-            filter_target='eq(spanSrcGrp.name, "{0}")'.format(src_group),
             module_object=src_group,
+            target_filter={'name': src_group},
         ),
         subclass_2=dict(
             aci_class='spanSpanLbl',
             aci_rn='spanlbl-{0}'.format(dst_group),
-            filter_target='eq(spanSpanLbl.name, "{0}")'.format(dst_group),
             module_object=dst_group,
+            target_filter={'name': dst_group},
         ),
     )
 

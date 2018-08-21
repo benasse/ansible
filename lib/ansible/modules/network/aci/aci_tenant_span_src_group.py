@@ -19,8 +19,8 @@ description:
 notes:
 - The C(tenant) used must exist before using this module in your playbook.
   The M(aci_tenant) module can be used for this.
-- More information about the internal APIC class B(span:SrcGrp) at
-  U(https://developer.cisco.com/docs/apic-mim-ref/).
+- More information about the internal APIC class B(span:SrcGrp) from
+  L(the APIC Management Information Model reference,https://developer.cisco.com/docs/apic-mim-ref/).
 author:
 - Jacob McGill (@jmcgill298)
 version_added: '2.4'
@@ -28,8 +28,8 @@ options:
   admin_state:
     description:
     - Enable or disable the span sources.
-    choices: [ enabled, disabled ]
-    default: enabled
+    - The APIC defaults to C(yes) when unset during creation.
+    type: bool
   description:
     description:
     - The description for Span source group.
@@ -64,6 +64,7 @@ EXAMPLES = r'''
     dst_group: "{{ dst_group }}"
     admin_state: "{{ admin_state }}"
     description: "{{ description }}"
+  delegate_to: localhost
 '''
 
 RETURN = r'''
@@ -184,8 +185,6 @@ def main():
         src_group=dict(type='str', required=False, aliases=['name']),  # Not required for querying all objects
         state=dict(type='str', default='present', choices=['absent', 'present', 'query']),
         tenant=dict(type='str', required=False, aliases=['tenant_name']),  # Not required for querying all objects
-        method=dict(type='str', choices=['delete', 'get', 'post'], aliases=['action'], removed_in_version='2.6'),  # Deprecated starting from v2.6
-        protocol=dict(type='str', removed_in_version='2.6'),  # Deprecated in v2.6
     )
 
     module = AnsibleModule(
@@ -210,14 +209,14 @@ def main():
         root_class=dict(
             aci_class='fvTenant',
             aci_rn='tn-{0}'.format(tenant),
-            filter_target='eq(fvTenant.name, "{0}")'.format(tenant),
             module_object=tenant,
+            target_filter={'name': tenant},
         ),
         subclass_1=dict(
             aci_class='spanSrcGrp',
             aci_rn='srcgrp-{0}'.format(src_group),
-            filter_target='eq(spanSrcGrp.name, "{0}")'.format(src_group),
             module_object=src_group,
+            target_filter={'name': src_group},
         ),
         child_classes=['spanSpanLbl'],
     )

@@ -52,7 +52,7 @@ options:
             - "Mapper which maps an external virtual NIC profile to one that exists in the engine when C(state) is registered.
                vnic_profile is described by the following dictionary:"
             - "C(source_network_name): The network name of the source network."
-            - "C(source_profile_name): The prfile name related to the source network."
+            - "C(source_profile_name): The profile name related to the source network."
             - "C(target_profile_id): The id of the target profile id to be mapped to in the engine."
         version_added: "2.5"
     cluster_mappings:
@@ -270,6 +270,13 @@ options:
             - Name of the storage domain this virtual machine lease reside on.
             - NOTE - Supported since oVirt 4.1.
         version_added: "2.4"
+    custom_compatibility_version:
+        description:
+            - "Enables a virtual machine to be customized to its own compatibility version. If
+            `C(custom_compatibility_version)` is set, it overrides the cluster's compatibility version
+            for this particular virtual machine."
+        version_added: "2.7"
+
     delete_protected:
         description:
             - If I(yes) Virtual Machine will be set as delete protected.
@@ -317,8 +324,8 @@ options:
     disks:
         description:
             - List of disks, which should be attached to Virtual Machine. Disk is described by following dictionary.
-            - C(name) - Name of the disk. Either C(name) or C(id) is reuqired.
-            - C(id) - ID of the disk. Either C(name) or C(id) is reuqired.
+            - C(name) - Name of the disk. Either C(name) or C(id) is required.
+            - C(id) - ID of the disk. Either C(name) or C(id) is required.
             - C(interface) - Interface of the disk, either I(virtio) or I(IDE), default is I(virtio).
             - C(bootable) - I(True) if the disk should be bootable, default is non bootable.
             - C(activate) - I(True) if the disk should be activated, default is activated.
@@ -359,7 +366,7 @@ options:
             - C(nic_on_boot) - If I(True) network interface will be set to start on boot.
     cloud_init_nics:
         description:
-            - List of dictionaries representing network interafaces to be setup by cloud init.
+            - List of dictionaries representing network interfaces to be setup by cloud init.
             - This option is used, when user needs to setup more network interfaces via cloud init.
             - If one network interface is enough, user should use C(cloud_init) I(nic_*) parameters. C(cloud_init) I(nic_*) parameters
               are merged with C(cloud_init_nics) parameters.
@@ -487,6 +494,11 @@ options:
             - "C(user_migratable) - Allow manual migration only."
             - "If no value is passed, default value is set by oVirt/RHV engine."
         version_added: "2.5"
+    ticket:
+        description:
+            - "If I(true), in addition return I(remote_vv_file) inside I(vm) dictionary, which contains compatible
+                content for remote-viewer application. Works only C(state) is I(running)."
+        version_added: "2.7"
     cpu_pinning:
         description:
             - "CPU Pinning topology to map virtual machine CPU to host CPU."
@@ -512,6 +524,21 @@ options:
             - "Memory balloon is a guest device, which may be used to re-distribute / reclaim the host memory
                based on VM needs in a dynamic way. In this way it's possible to create memory over commitment states."
         version_added: "2.5"
+    numa_tune_mode:
+        description:
+            - "Set how the memory allocation for NUMA nodes of this VM is applied (relevant if NUMA nodes are set for this VM)."
+            - "It can be one of the following: I(interleave), I(preferred) or I(strict)."
+            - "If no value is passed, default value is set by oVirt/RHV engine."
+        version_added: "2.6"
+    numa_nodes:
+        description:
+            - "List of vNUMA Nodes to set for this VM and pin them to assigned host's physical NUMA node."
+            - "Each vNUMA node is described by following dictionary:"
+            - "C(index) -  The index of this NUMA node (mandatory)."
+            - "C(memory) - Memory size of the NUMA node in MiB (mandatory)."
+            - "C(cores) -  list of VM CPU cores indexes to be included in this NUMA node (mandatory)."
+            - "C(numa_node_pins) - list of physical NUMA node indexes to pin this virtual NUMA node to."
+        version_added: "2.6"
     rng_device:
         description:
             - "Random number generator (RNG). You can choose of one the following devices I(urandom), I(random) or I(hwrng)."
@@ -538,7 +565,7 @@ options:
             - "Assign graphical console to the virtual machine."
             - "Graphical console is a dictionary which can have following values:"
             - "C(headless_mode) - If I(true) disable the graphics console for this virtual machine."
-            - "C(protocol) - Graphical protocol, one of I(VNC), I(SPICE), or both."
+            - "C(protocol) - Graphical protocol, a list of I(spice), I(vnc), or both."
         version_added: "2.5"
 notes:
     - If VM is in I(UNASSIGNED) or I(UNKNOWN) state before any operation, the module will fail.
@@ -760,6 +787,32 @@ EXAMPLES = '''
     name: myvm
     memory: 4GiB
 
+# Create/update a VM to run with two vNUMA nodes and pin them to physical NUMA nodes as follows:
+# vnuma index 0-> numa index 0, vnuma index 1-> numa index 1
+- name: Create a VM to run with two vNUMA nodes
+  ovirt_vms:
+    name: myvm
+    cluster: mycluster
+    numa_tune_mode: "interleave"
+    numa_nodes:
+    - index: 0
+      cores: [0]
+      memory: 20
+      numa_node_pins: [0]
+    - index: 1
+      cores: [1]
+      memory: 30
+      numa_node_pins: [1]
+
+- name: Update an existing VM to run without previously created vNUMA nodes (i.e. remove all vNUMA nodes+NUMA pinning setting)
+  ovirt_vms:
+    name: myvm
+    cluster: mycluster
+    state: "present"
+    numa_tune_mode: "interleave"
+    numa_nodes:
+    - index: -1
+
 # When change on the VM needs restart of the VM, use next_run state,
 # The VM will be updated and rebooted if there are any changes.
 # If present state would be used, VM won't be restarted.
@@ -809,6 +862,33 @@ EXAMPLES = '''
     usb_support: True
     serial_console: True
     quota_id: "{{ ovirt_quotas[0]['id'] }}"
+
+- name: Create a VM that has the console configured for both Spice and VNC
+  ovirt_vms:
+    name: myvm
+    template: mytemplate
+    cluster: mycluster
+    graphical_console:
+      protocol:
+        - spice
+        - vnc
+# Execute remote viever to VM
+- block:
+  - name: Create a ticket for console for a running VM
+    ovirt_vms:
+      name: myvm
+      ticket: true
+      state: running
+    register: myvm
+
+  - name: Save ticket to file
+    copy:
+      content: "{{ myvm.vm.remote_vv_file }}"
+      dest: ~/vvfile.vv
+
+  - name: Run remote viewer with file
+    command: remote-viewer ~/vvfile.vv
+
 '''
 
 
@@ -820,7 +900,10 @@ id:
     sample: 7de90f31-222c-436c-a1ca-7e655bd5b60c
 vm:
     description: "Dictionary of all the VM attributes. VM attributes can be found on your oVirt/RHV instance
-                  at following url: http://ovirt.github.io/ovirt-engine-api-model/master/#types/vm."
+                  at following url: http://ovirt.github.io/ovirt-engine-api-model/master/#types/vm.
+                  Additionally when user sent ticket=true, this module will return also remote_vv_file
+                  parameter in vm dictionary, which contains remote-viewer compatible file to open virtual
+                  machine console. Please note that this file contains sensible information."
     returned: On success if VM is found.
     type: dict
 '''
@@ -854,6 +937,7 @@ class VmsModule(BaseModule):
     def __init__(self, *args, **kwargs):
         super(VmsModule, self).__init__(*args, **kwargs)
         self._initialization = None
+        self._is_new = False
 
     def __get_template_with_version(self):
         """
@@ -862,9 +946,11 @@ class VmsModule(BaseModule):
         through it's version until we find the version we look for.
         """
         template = None
+        templates_service = self._connection.system_service().templates_service()
         if self.param('template'):
-            templates_service = self._connection.system_service().templates_service()
-            templates = templates_service.list(search='name=%s' % self.param('template'))
+            templates = templates_service.list(
+                search='name=%s and cluster=%s' % (self.param('template'), self.param('cluster'))
+            )
             if self.param('template_version'):
                 templates = [
                     t for t in templates
@@ -872,12 +958,16 @@ class VmsModule(BaseModule):
                 ]
             if not templates:
                 raise ValueError(
-                    "Template with name '%s' and version '%s' was not found'" % (
+                    "Template with name '%s' and version '%s' in cluster '%s' was not found'" % (
                         self.param('template'),
-                        self.param('template_version')
+                        self.param('template_version'),
+                        self.param('cluster')
                     )
                 )
             template = sorted(templates, key=lambda t: t.version.version_number, reverse=True)[0]
+        elif self._is_new:
+            # If template isn't specified and VM is about to be created specify default template:
+            template = templates_service.template_service('00000000-0000-0000-0000-000000000000').get()
 
         return template
 
@@ -1011,6 +1101,10 @@ class VmsModule(BaseModule):
                     self.param('instance_type'),
                 ),
             ) if self.param('instance_type') else None,
+            custom_compatibility_version=otypes.Version(
+                major=self._get_major(self.param('custom_compatibility_version')),
+                minor=self._get_minor(self.param('custom_compatibility_version')),
+            ) if self.param('custom_compatibility_version') else None,
             description=self.param('description'),
             comment=self.param('comment'),
             time_zone=otypes.TimeZone(
@@ -1036,6 +1130,9 @@ class VmsModule(BaseModule):
             io=otypes.Io(
                 threads=self.param('io_threads'),
             ) if self.param('io_threads') is not None else None,
+            numa_tune_mode=otypes.NumaTuneMode(
+                self.param('numa_tune_mode')
+            ) if self.param('numa_tune_mode') else None,
             rng_device=otypes.RngDevice(
                 source=otypes.RngSource(self.param('rng_device')),
             ) if self.param('rng_device') else None,
@@ -1095,9 +1192,11 @@ class VmsModule(BaseModule):
             equal(self.param('io_threads'), entity.io.threads) and
             equal(self.param('ballooning_enabled'), entity.memory_policy.ballooning) and
             equal(self.param('serial_console'), entity.console.enabled) and
+            equal(self._get_minor(self.param('custom_compatibility_version')), self._get_minor(entity.custom_compatibility_version)) and
+            equal(self._get_major(self.param('custom_compatibility_version')), self._get_major(entity.custom_compatibility_version)) and
             equal(self.param('usb_support'), entity.usb.enabled) and
             equal(self.param('sso'), True if entity.sso.methods else False) and
-            equal(self.param('quota_id'), getattr(entity.quota, 'id')) and
+            equal(self.param('quota_id'), getattr(entity.quota, 'id', None)) and
             equal(self.param('high_availability'), entity.high_availability.enabled) and
             equal(self.param('high_availability_priority'), entity.high_availability.priority) and
             equal(self.param('lease'), get_link_name(self._connection, getattr(entity.lease, 'storage_domain', None))) and
@@ -1113,14 +1212,14 @@ class VmsModule(BaseModule):
             equal(self.param('serial_policy'), str(getattr(entity.serial_number, 'policy', None))) and
             equal(self.param('serial_policy_value'), getattr(entity.serial_number, 'value', None)) and
             equal(self.param('placement_policy'), str(entity.placement_policy.affinity) if entity.placement_policy else None) and
+            equal(self.param('numa_tune_mode'), str(entity.numa_tune_mode)) and
             equal(self.param('rng_device'), str(entity.rng_device.source) if entity.rng_device else None)
         )
 
     def pre_create(self, entity):
-        # If VM don't exists, and template is not specified, set it to Blank:
+        # Mark if entity exists before touching it:
         if entity is None:
-            if self.param('template') is None:
-                self._module.params['template'] = 'Blank'
+            self._is_new = True
 
     def post_update(self, entity):
         self.post_present(entity.id)
@@ -1128,8 +1227,10 @@ class VmsModule(BaseModule):
     def post_present(self, entity_id):
         # After creation of the VM, attach disks and NICs:
         entity = self._service.service(entity_id).get()
-        self.changed = self.__attach_disks(entity)
-        self.changed = self.__attach_nics(entity)
+        self.__attach_disks(entity)
+        self.__attach_nics(entity)
+        self._attach_cd(entity)
+        self.changed = self.__attach_numa_nodes(entity)
         self.changed = self.__attach_watchdog(entity)
         self.changed = self.__attach_graphical_console(entity)
 
@@ -1180,7 +1281,7 @@ class VmsModule(BaseModule):
         cd_iso = self.param('cd_iso')
         if cd_iso is not None:
             vm_service = self._service.service(entity.id)
-            current = vm_service.get().status == otypes.VmStatus.UP
+            current = vm_service.get().status == otypes.VmStatus.UP and self.param('state') == 'running'
             cdroms_service = vm_service.cdroms_service()
             cdrom_device = cdroms_service.list()[0]
             cdrom_service = cdroms_service.cdrom_service(cdrom_device.id)
@@ -1280,7 +1381,7 @@ class VmsModule(BaseModule):
     def __attach_graphical_console(self, entity):
         graphical_console = self.param('graphical_console')
         if not graphical_console:
-            return
+            return False
 
         vm_service = self._service.service(entity.id)
         gcs_service = vm_service.graphics_consoles_service()
@@ -1390,6 +1491,44 @@ class VmsModule(BaseModule):
                 )
             )
 
+    def __attach_numa_nodes(self, entity):
+        updated = False
+        numa_nodes_service = self._service.service(entity.id).numa_nodes_service()
+
+        if len(self.param('numa_nodes')) > 0:
+            # Remove all existing virtual numa nodes before adding new ones
+            existed_numa_nodes = numa_nodes_service.list()
+            existed_numa_nodes.sort(reverse=len(existed_numa_nodes) > 1 and existed_numa_nodes[1].index > existed_numa_nodes[0].index)
+            for current_numa_node in existed_numa_nodes:
+                numa_nodes_service.node_service(current_numa_node.id).remove()
+                updated = True
+
+        for numa_node in self.param('numa_nodes'):
+            if numa_node is None or numa_node.get('index') is None or numa_node.get('cores') is None or numa_node.get('memory') is None:
+                continue
+
+            numa_nodes_service.add(
+                otypes.VirtualNumaNode(
+                    index=numa_node.get('index'),
+                    memory=numa_node.get('memory'),
+                    cpu=otypes.Cpu(
+                        cores=[
+                            otypes.Core(
+                                index=core
+                            ) for core in numa_node.get('cores')
+                        ],
+                    ),
+                    numa_node_pins=[
+                        otypes.NumaNodePin(
+                            index=pin
+                        ) for pin in numa_node.get('numa_node_pins')
+                    ] if numa_node.get('numa_node_pins') is not None else None,
+                )
+            )
+            updated = True
+
+        return updated
+
     def __attach_watchdog(self, entity):
         watchdogs_service = self._service.service(entity.id).watchdogs_service()
         watchdog = self.param('watchdog')
@@ -1491,7 +1630,6 @@ class VmsModule(BaseModule):
 
 def _get_role_mappings(module):
     roleMappings = list()
-
     for roleMapping in module.params['role_mappings']:
         roleMappings.append(
             otypes.RegistrationRoleMapping(
@@ -1794,12 +1932,16 @@ def main():
         kvm=dict(type='dict'),
         cpu_mode=dict(type='str'),
         placement_policy=dict(type='str'),
+        custom_compatibility_version=dict(type='str'),
+        ticket=dict(type='bool', default=None),
         cpu_pinning=dict(type='list'),
         soundcard_enabled=dict(type='bool', default=None),
         smartcard_enabled=dict(type='bool', default=None),
         io_threads=dict(type='int', default=None),
         ballooning_enabled=dict(type='bool', default=None),
         rng_device=dict(type='str'),
+        numa_tune_mode=dict(type='str', choices=['interleave', 'preferred', 'strict']),
+        numa_nodes=dict(type='list', default=[]),
         custom_properties=dict(type='list'),
         watchdog=dict(type='dict'),
         graphical_console=dict(type='dict'),
@@ -1837,8 +1979,11 @@ def main():
                 clone=module.params['clone'],
                 clone_permissions=module.params['clone_permissions'],
             )
-            vms_module.post_present(ret['id'])
+            # If VM is going to be created and check_mode is on, return now:
+            if module.check_mode and ret.get('id') is None:
+                module.exit_json(**ret)
 
+            vms_module.post_present(ret['id'])
             # Run the VM if it was just created, else don't run it:
             if state == 'running':
                 initialization = vms_module.get_initialization()
@@ -1882,6 +2027,15 @@ def main():
                     ) else None,
                 )
 
+                if module.params['ticket']:
+                    vm_service = vms_service.vm_service(ret['id'])
+                    graphics_consoles_service = vm_service.graphics_consoles_service()
+                    graphics_console = graphics_consoles_service.list()[0]
+                    console_service = graphics_consoles_service.console_service(graphics_console.id)
+                    ticket = console_service.remote_viewer_connection_file()
+                    if ticket:
+                        ret['vm']['remote_vv_file'] = ticket
+
             if state == 'next_run':
                 # Apply next run configuration, if needed:
                 vm = vms_service.vm_service(ret['id']).get()
@@ -1898,15 +2052,14 @@ def main():
                 vms_module.changed = import_vm(module, connection)
 
             ret = vms_module.create(
+                entity=vm,
                 result_state=otypes.VmStatus.DOWN if vm is None else None,
                 clone=module.params['clone'],
                 clone_permissions=module.params['clone_permissions'],
             )
-            vms_module.post_present(ret['id'])
             if module.params['force']:
                 ret = vms_module.action(
                     action='stop',
-                    post_action=vms_module._attach_cd,
                     action_condition=lambda vm: vm.status != otypes.VmStatus.DOWN,
                     wait_condition=vms_module.wait_for_down,
                 )
@@ -1914,12 +2067,13 @@ def main():
                 ret = vms_module.action(
                     action='shutdown',
                     pre_action=vms_module._pre_shutdown_action,
-                    post_action=vms_module._attach_cd,
                     action_condition=lambda vm: vm.status != otypes.VmStatus.DOWN,
                     wait_condition=vms_module.wait_for_down,
                 )
+            vms_module.post_present(ret['id'])
         elif state == 'suspended':
             vms_module.create(
+                entity=vm,
                 result_state=otypes.VmStatus.DOWN if vm is None else None,
                 clone=module.params['clone'],
                 clone_permissions=module.params['clone_permissions'],

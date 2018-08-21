@@ -17,8 +17,8 @@ short_description: Manage encap pools (fvns:VlanInstP, fvns:VxlanInstP, fvns:Vsa
 description:
 - Manage vlan, vxlan, and vsan pools on Cisco ACI fabrics.
 notes:
-- More information about the internal APIC classes B(fvns:VlanInstP), B(fvns:VxlanInstP) and B(fvns:VsanInstP) at
-  U(https://developer.cisco.com/docs/apic-mim-ref/).
+- More information about the internal APIC classes B(fvns:VlanInstP), B(fvns:VxlanInstP) and B(fvns:VsanInstP) from
+  L(the APIC Management Information Model reference,https://developer.cisco.com/docs/apic-mim-ref/).
 author:
 - Jacob McGill (@jmcgill298)
 version_added: '2.5'
@@ -62,6 +62,7 @@ EXAMPLES = r'''
     pool_type: vlan
     description: Production VLANs
     state: present
+  delegate_to: localhost
 
 - name: Remove a vlan pool
   aci_encap_pool:
@@ -71,6 +72,7 @@ EXAMPLES = r'''
     pool: production
     pool_type: vlan
     state: absent
+  delegate_to: localhost
 
 - name: Query a vlan pool
   aci_encap_pool:
@@ -80,6 +82,8 @@ EXAMPLES = r'''
     pool: production
     pool_type: vlan
     state: query
+  delegate_to: localhost
+  register: query_result
 
 - name: Query all vlan pools
   aci_encap_pool:
@@ -88,6 +92,8 @@ EXAMPLES = r'''
     password: SomeSecretPassword
     pool_type: vlan
     state: query
+  delegate_to: localhost
+  register: query_result
 '''
 
 RETURN = r'''
@@ -259,8 +265,8 @@ def main():
         root_class=dict(
             aci_class=aci_class,
             aci_rn='{0}{1}'.format(aci_mo, pool_name),
-            filter_target='eq({0}.name, "{1}")'.format(aci_class, pool),
             module_object=pool,
+            target_filter={'name': pool},
         ),
     )
 

@@ -19,8 +19,8 @@ description:
 - Bind interface selector profiles to switch policy leaf profiles on Cisco ACI fabrics.
 notes:
 - This module requires an existing leaf profile, the module M(aci_switch_policy_leaf_profile) can be used for this.
-- More information about the internal APIC class B(infra:RsAccPortP) at
-  U(https://developer.cisco.com/docs/apic-mim-ref/).
+- More information about the internal APIC class B(infra:RsAccPortP) from
+  L(the APIC Management Information Model reference,https://developer.cisco.com/docs/apic-mim-ref/).
 author:
 - Bruno Calogero (@brunocalogero)
 version_added: '2.5'
@@ -51,6 +51,7 @@ EXAMPLES = r'''
     leaf_profile: sw_name
     interface_selector: interface_profile_name
     state: present
+  delegate_to: localhost
 
 - name: Remove an interface selector profile associated with a switch policy leaf profile
   aci_interface_selector_to_switch_policy_leaf_profile:
@@ -60,6 +61,7 @@ EXAMPLES = r'''
     leaf_profile: sw_name
     interface_selector: interface_profile_name
     state: absent
+  delegate_to: localhost
 
 - name: Query an interface selector profile associated with a switch policy leaf profile
   aci_interface_selector_to_switch_policy_leaf_profile:
@@ -69,6 +71,8 @@ EXAMPLES = r'''
     leaf_profile: sw_name
     interface_selector: interface_profile_name
     state: query
+  delegate_to: localhost
+  register: query_result
 '''
 
 RETURN = r'''
@@ -210,14 +214,14 @@ def main():
         root_class=dict(
             aci_class='infraNodeP',
             aci_rn='infra/nprof-{0}'.format(leaf_profile),
-            filter_target='eq(infraNodeP.name, "{0}")'.format(leaf_profile),
-            module_object=leaf_profile
+            module_object=leaf_profile,
+            target_filter={'name': leaf_profile},
         ),
         subclass_1=dict(
             aci_class='infraRsAccPortP',
             aci_rn='rsaccPortP-[{0}]'.format(interface_selector_tDn),
-            filter_target='eq(infraRsAccPortP.name, "{0}")'.format(interface_selector),
             module_object=interface_selector,
+            target_filter={'name': interface_selector},
         )
     )
 
